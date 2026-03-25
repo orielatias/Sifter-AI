@@ -2,9 +2,8 @@ name: Daily AI Intelligence Pipeline
 
 on:
   schedule:
-    # Runs every day at 7:00 AM UTC (3:00 AM ET / 12:00 AM PT)
     - cron: '0 7 * * *'
-  workflow_dispatch:  # Allow manual trigger from GitHub UI
+  workflow_dispatch:
 
 env:
   PYTHONPATH: ${{ github.workspace }}
@@ -31,36 +30,36 @@ jobs:
             feedparser beautifulsoup4 jinja2 resend
 
       - name: Create .env from secrets
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          QDRANT_URL: ${{ secrets.QDRANT_URL }}
+          QDRANT_API_KEY: ${{ secrets.QDRANT_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          DIGEST_FROM_EMAIL: ${{ secrets.DIGEST_FROM_EMAIL }}
+          DIGEST_TO_EMAILS: ${{ secrets.DIGEST_TO_EMAILS }}
         run: |
-          cat <<EOF > .env
-          SUPABASE_DB_URL=${{ secrets.SUPABASE_DB_URL }}
-          QDRANT_URL=${{ secrets.QDRANT_URL }}
-          QDRANT_API_KEY=${{ secrets.QDRANT_API_KEY }}
-          ANTHROPIC_API_KEY=${{ secrets.ANTHROPIC_API_KEY }}
-          RESEND_API_KEY=${{ secrets.RESEND_API_KEY }}
-          DIGEST_FROM_EMAIL=${{ secrets.DIGEST_FROM_EMAIL }}
-          DIGEST_TO_EMAILS=${{ secrets.DIGEST_TO_EMAILS }}
-          REDDIT_CLIENT_ID=${{ secrets.REDDIT_CLIENT_ID }}
-          REDDIT_CLIENT_SECRET=${{ secrets.REDDIT_CLIENT_SECRET }}
-          REDDIT_USER_AGENT=sifter-ai/0.1
-          ENVIRONMENT=production
-          LOG_LEVEL=INFO
-          EOF
+          python -c "
+          import os
+          keys = ['SUPABASE_DB_URL','QDRANT_URL','QDRANT_API_KEY','ANTHROPIC_API_KEY','RESEND_API_KEY','DIGEST_FROM_EMAIL','DIGEST_TO_EMAILS']
+          with open('.env','w') as f:
+              for k in keys:
+                  v = os.environ.get(k,'')
+                  f.write(f'{k}={v}\n')
+          print('.env created')
+          "
 
-      # ── STEP 1: Ingest from all sources ──
       - name: Run Hacker News ingestion
         run: python scripts/run_hackernews.py --max-stories 100
 
       - name: Run RSS ingestion
         run: python scripts/run_rss.py
 
-      # ── STEP 2: Analyze new items ──
       - name: Run AI analysis pipeline
         run: python scripts/run_analysis.py --batch-size 200
 
-      # ── STEP 3: Send digest ──
       - name: Generate and send digest
         run: python scripts/run_digest.py --period-days 1 --top-n 10
 
       - name: Pipeline complete
-        run: echo "✅ Daily pipeline complete at $(date -u)"
+        run: echo "Daily pipeline complete at $(date -u)"
