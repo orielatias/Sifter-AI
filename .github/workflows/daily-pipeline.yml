@@ -48,6 +48,17 @@ jobs:
                   f.write(f'{k}={v}\n')
           print('.env created')
           "
+      - name: Debug env file
+        run: |
+          python -c "
+          with open('.env') as f:
+              for line in f:
+                  key, _, val = line.strip().partition('=')
+                  if 'URL' in key or 'KEY' in key:
+                      print(f'{key}={val[:20]}...({len(val)} chars)')
+                  else:
+                      print(f'{key}={val}')
+          "
 
       - name: Run Hacker News ingestion
         run: python scripts/run_hackernews.py --max-stories 100
