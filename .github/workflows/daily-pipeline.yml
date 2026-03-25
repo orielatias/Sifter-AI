@@ -1,0 +1,66 @@
+name: Daily AI Intelligence Pipeline
+
+on:
+  schedule:
+    # Runs every day at 7:00 AM UTC (3:00 AM ET / 12:00 AM PT)
+    - cron: '0 7 * * *'
+  workflow_dispatch:  # Allow manual trigger from GitHub UI
+
+env:
+  PYTHONPATH: ${{ github.workspace }}
+
+jobs:
+  pipeline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          pip install pydantic pydantic-settings python-dotenv structlog httpx \
+            "sqlalchemy[asyncio]" asyncpg qdrant-client anthropic \
+            feedparser beautifulsoup4 jinja2 resend
+
+      - name: Create .env from secrets
+        run: |
+          cat <<EOF > .env
+          SUPABASE_DB_URL=${{ secrets.SUPABASE_DB_URL }}
+          QDRANT_URL=${{ secrets.QDRANT_URL }}
+          QDRANT_API_KEY=${{ secrets.QDRANT_API_KEY }}
+          ANTHROPIC_API_KEY=${{ secrets.ANTHROPIC_API_KEY }}
+          RESEND_API_KEY=${{ secrets.RESEND_API_KEY }}
+          DIGEST_FROM_EMAIL=${{ secrets.DIGEST_FROM_EMAIL }}
+          DIGEST_TO_EMAILS=${{ secrets.DIGEST_TO_EMAILS }}
+          REDDIT_CLIENT_ID=${{ secrets.REDDIT_CLIENT_ID }}
+          REDDIT_CLIENT_SECRET=${{ secrets.REDDIT_CLIENT_SECRET }}
+          REDDIT_USER_AGENT=sifter-ai/0.1
+          ENVIRONMENT=production
+          LOG_LEVEL=INFO
+          EOF
+
+      # ── STEP 1: Ingest from all sources ──
+      - name: Run Hacker News ingestion
+        run: python scripts/run_hackernews.py --max-stories 100
+
+      - name: Run RSS ingestion
+        run: python scripts/run_rss.py
+
+      # ── STEP 2: Analyze new items ──
+      - name: Run AI analysis pipeline
+        run: python scripts/run_analysis.py --batch-size 200
+
+      # ── STEP 3: Send digest ──
+      - name: Generate and send digest
+        run: python scripts/run_digest.py --period-days 1 --top-n 10
+
+      - name: Pipeline complete
+        run: echo "✅ Daily pipeline complete at $(date -u)"
