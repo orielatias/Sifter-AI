@@ -5,13 +5,21 @@ on:
     - cron: '0 7 * * *'
   workflow_dispatch:
 
-env:
-  PYTHONPATH: ${{ github.workspace }}
-
 jobs:
   pipeline:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      PYTHONPATH: ${{ github.workspace }}
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      QDRANT_URL: ${{ secrets.QDRANT_URL }}
+      QDRANT_API_KEY: ${{ secrets.QDRANT_API_KEY }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+      DIGEST_FROM_EMAIL: ${{ secrets.DIGEST_FROM_EMAIL }}
+      DIGEST_TO_EMAILS: ${{ secrets.DIGEST_TO_EMAILS }}
+      ENVIRONMENT: production
+      LOG_LEVEL: INFO
 
     steps:
       - name: Checkout code
@@ -29,35 +37,16 @@ jobs:
             "sqlalchemy[asyncio]" asyncpg qdrant-client anthropic \
             feedparser beautifulsoup4 jinja2 resend
 
-      - name: Create .env from secrets
-        env:
-          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
-          QDRANT_URL: ${{ secrets.QDRANT_URL }}
-          QDRANT_API_KEY: ${{ secrets.QDRANT_API_KEY }}
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
-          DIGEST_FROM_EMAIL: ${{ secrets.DIGEST_FROM_EMAIL }}
-          DIGEST_TO_EMAILS: ${{ secrets.DIGEST_TO_EMAILS }}
+      - name: Debug connection string
         run: |
           python -c "
           import os
-          keys = ['SUPABASE_DB_URL','QDRANT_URL','QDRANT_API_KEY','ANTHROPIC_API_KEY','RESEND_API_KEY','DIGEST_FROM_EMAIL','DIGEST_TO_EMAILS']
-          with open('.env','w') as f:
-              for k in keys:
-                  v = os.environ.get(k,'')
-                  f.write(f'{k}={v}\n')
-          print('.env created')
-          "
-      - name: Debug env file
-        run: |
-          python -c "
-          with open('.env') as f:
-              for line in f:
-                  key, _, val = line.strip().partition('=')
-                  if 'URL' in key or 'KEY' in key:
-                      print(f'{key}={val[:20]}...({len(val)} chars)')
-                  else:
-                      print(f'{key}={val}')
+          url = os.environ.get('SUPABASE_DB_URL', 'NOT SET')
+          print(f'URL length: {len(url)}')
+          print(f'Starts with: {url[:25]}...')
+          print(f'Contains asyncpg: {\"asyncpg\" in url}')
+          print(f'Contains @: {\"@\" in url}')
+          print(f'Port segment: ...{url.split(\"@\")[-1][:50] if \"@\" in url else \"no @\"}')
           "
 
       - name: Run Hacker News ingestion
