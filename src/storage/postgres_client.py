@@ -43,6 +43,7 @@ class PostgresClient:
                     connect_args={
                         "statement_cache_size": 0,
                         "prepared_statement_cache_size": 0,
+                        "server_settings": {"pgbouncer.query_wait_timeout": "10"},
                     },
                 )
         self.session_factory = async_sessionmaker(
