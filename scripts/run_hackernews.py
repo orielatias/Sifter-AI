@@ -91,7 +91,7 @@ async def main():
         print(f"{'='*70}")
         print(f"   Total collected: {summary['total_collected']}")
         print(f"   New items stored: {summary['total_stored']}")
-        print(f"   Duration: {summary['run_duration_seconds']:.1f}s")
+        print(f"   Duration: {summary.get('run_duration_seconds', summary.get('elapsed_seconds', 0)):.1f}s")
 
         hn_stats = summary["by_source"].get("hackernews", {})
         print(f"\n   Hacker News breakdown:")
